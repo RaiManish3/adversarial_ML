@@ -6,7 +6,7 @@ import re
 
 #---------------------------------------------------------------------------------------
 ## reading the pgm file
-file_no = 16
+file_no = 21
 
 labels= []
 images= []
@@ -14,11 +14,11 @@ for i in xrange(11,file_no+1):
 	if i==14: continue
 	nmbr = str(i)
 	dirc = 'yaleB' + nmbr
-	for j in xrange(1,9):
+	for j in xrange(9):
 		if i==16: nmbr2 = '0'+str(j+1)
 		else: nmbr2='0'+str(j)
 		file_info = open(dirc+'/'+dirc+'_P'+nmbr2+'.info','r')
-		label = np.zeros(5)
+		label = np.zeros(10)
 
 		for line in file_info.readlines():
 			line = line.strip()
@@ -60,10 +60,17 @@ np.random.shuffle(s)
 x_images = x_images[s]
 y_labels = y_labels[s]
 
+n_test = int(np.floor(0.1*tt))
+print n_test
+x_train = x_images[:tt-n_test]
+y_train = y_labels[:tt-n_test]
+
+x_test = x_images[-n_test:]
+y_test = y_labels[-n_test:]
+
 file_info.close()
 
-#----------------------------------------------------------------------------------------------------------
-
+#---------------------------------------------------------------------------------------------------------- 
 
 sess = tf.InteractiveSession()
 
@@ -86,7 +93,7 @@ def max_pooling_2x2(x):
     
 # Create placeholders nodes for images and label inputs
 x = tf.placeholder(tf.float32, shape=[None, 168*192])
-y_ = tf.placeholder(tf.float32, shape=[None, 5])
+y_ = tf.placeholder(tf.float32, shape=[None, 10])
 
 
 # y = (Wx +b)
@@ -119,8 +126,8 @@ keep_prob = tf.placeholder(tf.float32)
 x_fc1_drop = tf.nn.dropout(x_fc1, keep_prob)
 
 # Classification layer
-W_fc2 = weight_variable([1024, 5])
-b_fc2 = bias_variable([5])
+W_fc2 = weight_variable([1024, 10])
+b_fc2 = bias_variable([10])
 y_conv = tf.matmul(x_fc1_drop, W_fc2) + b_fc2
 
 
@@ -142,18 +149,17 @@ sess.run(tf.global_variables_initializer())
 
 # Train model
 # Run once to get the model to a good confidence level
-for i in range(tt/100+1):
-    end = min((i+1)*100,tt)
-    batch_x = x_images[i*100:end]
-    batch_y = y_labels[i*100:end]
-    #if i%2 == 0:
+for i in range((tt-n_test)/200+1):
+    end = min((i+1)*200,tt-n_test)
+    batch_x = x_train[i*200:end]
+    batch_y = y_train[i*200:end]
 
     train_step.run(feed_dict={x: batch_x, y_: batch_y, keep_prob: 0.4})
     train_accuracy = accuracy.eval(feed_dict={x:batch_x, y_: batch_y, keep_prob: 1.0})
     print("step %d, training accuracy %g"%(i, train_accuracy))
 
-print("test accuracy %g"%accuracy.eval(feed_dict={x: x_images[50:150], 
-                                                  y_: y_labels[50:150], keep_prob: 1.0}))
+print("test accuracy %g"%accuracy.eval(feed_dict={x: x_test[:200], 
+                                                  y_: y_test[:200], keep_prob: 1.0}))
 
 
 
@@ -166,6 +172,7 @@ def plot_predictions(image_list, output_probs=False, adversarial=False):
     '''
     prob = y.eval(feed_dict={x: image_list, keep_prob: 1.0})
     
+
     pred_list = np.zeros(len(image_list)).astype(int)
     pct_list = np.zeros(len(image_list)).astype(int)
     
@@ -202,7 +209,7 @@ def plot_predictions(image_list, output_probs=False, adversarial=False):
 
 
 
-def create_plot_adversarial_images(x_image, y_label, lr=0.1, n_steps=1, output_probs=False):
+def create_plot_adversarial_images(x_image, y_label, lr=0.1, n_steps=1, output_probs=True):
     
     original_image = x_image
     probs_per_step = []
@@ -226,7 +233,6 @@ def create_plot_adversarial_images(x_image, y_label, lr=0.1, n_steps=1, output_p
 
         # Print/plot images and return probabilities
         probs = plot_predictions(img_adv_list, output_probs=output_probs, adversarial=True)
-        #print np.argmax(probs, axis=1)
         probs_per_step.append(probs) if output_probs else None
     
     return probs_per_step
@@ -236,16 +242,17 @@ def create_plot_adversarial_images(x_image, y_label, lr=0.1, n_steps=1, output_p
 
 # Pick a random second person's image from first 1000 images 
 # Create adversarial image and with target label 0
-index_of_2s = np.nonzero(y_labels[0:1000][:,1])[0]
-rand_index = np.random.randint(0, len(index_of_2s))
-image_norm = x_images[index_of_2s[rand_index]]
+index_adv = np.nonzero(y_labels[0:1000][:,0])[0]
+rand_index = np.random.randint(0, len(index_adv))
+image_norm = x_images[index_adv[rand_index]]
 image_norm = np.reshape(image_norm, (1, 32256))
-label_adv = [0,0,0,1,0]
+label_adv = [0,0,0,0,0,0,0,1,0,0]
 
 
 # Plot adversarial images
-# Over each step, model certainty changes from person 2 to person 1
+# Over each step, model certainty changes from person 'x' to person 'y'
 create_plot_adversarial_images(image_norm, label_adv, lr=0.2, n_steps=5)
 
  
 sess.close()
+
