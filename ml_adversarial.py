@@ -99,7 +99,7 @@ y_ = tf.placeholder(tf.float32, shape=[None, 10])
 # y = (Wx +b)
 
 # Input layer
-x_image = tf.reshape(x, [-1,168,192,1]) 
+x_image = tf.reshape(x, [-1,192,168,1]) 
 
 # Conv layer 1 - 32x5x5
 W_conv1 = weight_variable([5, 5, 1, 32])
@@ -191,7 +191,7 @@ def plot_predictions(image_list, output_probs=False, adversarial=False):
         pred_list[i] = np.argmax(prob[i]) # here index == classification
         pct_list[i] = prob[i][pred_list[i]] * 100
 
-        image = image_list[i].reshape(168,192)
+        image = image_list[i].reshape(192,168)
         grid[i].imshow(image)
         
         grid[i].set_title('Label: {0} \nCertainty: {1}%' \
@@ -251,7 +251,7 @@ label_adv = [0,0,0,0,0,0,0,1,0,0]
 
 # Plot adversarial images
 # Over each step, model certainty changes from person 'x' to person 'y'
-create_plot_adversarial_images(image_norm, label_adv, lr=0.2, n_steps=5)
+create_plot_adversarial_images(image_norm, label_adv, lr=0.02, n_steps=5)
 
  
 sess.close()
