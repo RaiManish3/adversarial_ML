@@ -6,6 +6,24 @@ import re
 
 #---------------------------------------------------------------------------------------
 ## reading the pgm file
+## reading the pgm file
+def readPGM(fname):
+    with open(fname, 'rb') as f:
+        buffer = f.read()
+    try:
+        header, width, height, maxval = re.search(
+        b"(^P5\s(?:\s*#.*[\r\n])*"
+        b"(\d+)\s(?:\s*#.*[\r\n])*"
+        b"(\d+)\s(?:\s*#.*[\r\n])*"
+        b"(\d+)\s(?:\s*#.*[\r\n]\s)*)", buffer).groups()
+    except AttributeError:
+        raise ValueError("Not a raw PGM file: '%s'" % fname)
+    return np.frombuffer(buffer,
+            dtype='u1' if int(maxval) < 256 else byteorder+'u2',
+            count=int(width)*int(height),
+            offset=len(header)
+            ).reshape((int(height)*int(width)))
+
 file_no = 21
 
 labels= []
@@ -22,22 +40,7 @@ for i in xrange(11,file_no+1):
 
 		for line in file_info.readlines():
 			line = line.strip()
-			with open(dirc+'/'+line, 'rb') as f:
-			  buffer = f.read()
-			try:
-			  header, width, height, maxval = re.search(
-			  b"(^P5\s(?:\s*#.*[\r\n])*"
-			  b"(\d+)\s(?:\s*#.*[\r\n])*"
-			  b"(\d+)\s(?:\s*#.*[\r\n])*"
-			  b"(\d+)\s(?:\s*#.*[\r\n]\s)*)", buffer).groups()
-			except AttributeError:
-			  raise ValueError("Not a raw PGM file: '%s'" % filename)
-			#print line
-			xh=np.frombuffer(buffer,
-				   dtype='u1' if int(maxval) < 256 else byteorder+'u2',
-				   count=int(width)*int(height),
-				   offset=len(header)
-				  ).reshape((int(height)*int(width)))
+			xh = readPGM(dirc+'/'+line)
 			if i<14:
 				label[i-11]=1
 			else:
@@ -70,6 +73,15 @@ y_test = y_labels[-n_test:]
 
 file_info.close()
 
+#--------------------------------------------------------------------------------------------------------
+pertb_lst_file = 'index/info9_uniq.txt'
+ptb_list=[]
+with open(pertb_lst_file,'r') as fpt:
+    for line in fpt:
+        col,row = map(int, line.strip().split(','))
+        ptb_list.append((col,row))
+
+
 #---------------------------------------------------------------------------------------------------------- 
 
 sess = tf.InteractiveSession()
@@ -89,8 +101,8 @@ def conv2d(x, W):
 
 def max_pooling_2x2(x):
     return tf.nn.max_pool(x, ksize=[1,2,2,1], strides=[1,2,2,1], padding='SAME')
-    
-    
+
+   
 # Create placeholders nodes for images and label inputs
 x = tf.placeholder(tf.float32, shape=[None, 168*192])
 y_ = tf.placeholder(tf.float32, shape=[None, 10])
@@ -162,7 +174,6 @@ print("test accuracy %g"%accuracy.eval(feed_dict={x: x_test[:200],
                                                   y_: y_test[:200], keep_prob: 1.0}))
 
 
-
 #------------------------------------
 def plot_predictions(image_list, output_probs=False, adversarial=False):
     '''
@@ -192,7 +203,7 @@ def plot_predictions(image_list, output_probs=False, adversarial=False):
         pct_list[i] = prob[i][pred_list[i]] * 100
 
         image = image_list[i].reshape(192,168)
-        grid[i].imshow(image)
+        grid[i].imshow(image, cmap='gray')
         
         grid[i].set_title('Label: {0} \nCertainty: {1}%' \
                           .format(pred_list[i], 
@@ -208,6 +219,7 @@ def plot_predictions(image_list, output_probs=False, adversarial=False):
 #----------------------------------------
 
 
+derivx = tf.placeholder(tf.float32, shape=[None, 32256])
 
 def create_plot_adversarial_images(x_image, y_label, lr=0.1, n_steps=1, output_probs=True):
     
@@ -217,41 +229,61 @@ def create_plot_adversarial_images(x_image, y_label, lr=0.1, n_steps=1, output_p
     # Calculate loss, derivative and create adversarial image
     loss =  tf.nn.softmax_cross_entropy_with_logits(labels=y_label, logits=y_conv)
     deriv = tf.gradients(loss, x)
-    image_adv = tf.stop_gradient(x - tf.sign(deriv)*lr/n_steps)
+    image_adv = tf.stop_gradient(x - tf.sign(derivx)*lr/n_steps)
     image_adv = tf.clip_by_value(image_adv, 0, 1) # prevents -ve values creating 'real' image
     
+    i=0
     for _ in range(n_steps):
         # Calculate derivative and adversarial image
         dydx = sess.run(deriv, {x: x_image, keep_prob: 1.0}) # can't seem to access 'deriv' w/o running this
-        x_adv = sess.run(image_adv, {x: x_image, keep_prob: 1.0})
+        deriv2  = np.zeros([1,32256])
+        for c,r in ptb_list:
+            deriv2[0][168*r+c] = dydx[0][0][168*r+c]
+        x_adv = sess.run(image_adv, {x: x_image, derivx: np.array(deriv2), keep_prob: 1.0})
         
         # Create darray of 3 images - orig, noise/delta, adversarial
         x_image = np.reshape(x_adv, (1, 32256))
         img_adv_list = original_image
-        img_adv_list = np.append(img_adv_list, dydx[0], axis=0)
+        img_adv_list = np.append(img_adv_list, deriv2, axis=0)
         img_adv_list = np.append(img_adv_list, x_image, axis=0)
 
         # Print/plot images and return probabilities
         probs = plot_predictions(img_adv_list, output_probs=output_probs, adversarial=True)
         probs_per_step.append(probs) if output_probs else None
+        print "probability: ",probs
+        print "iteration: ",i
+        i+=1
     
-    return probs_per_step
+    #return probs_per_step
+    return False
    
+#-----------------------------------------------------------------------------------
+#filename to bemisclassified => yaleB11_P00A+000E+00.pgm
+fperturb ='yaleB11/yaleB11_P00A+000E+00.pgm'
+#image_norm = np.reshape(readPGM(fperturb), (1, 32256))/255.0
 
-
-
+"""
 # Pick a random second person's image from first 1000 images 
 # Create adversarial image and with target label 0
 index_adv = np.nonzero(y_labels[0:1000][:,0])[0]
 rand_index = np.random.randint(0, len(index_adv))
 image_norm = x_images[index_adv[rand_index]]
 image_norm = np.reshape(image_norm, (1, 32256))
+"""
+
 label_adv = [0,0,0,0,0,0,0,1,0,0]
 
 
 # Plot adversarial images
 # Over each step, model certainty changes from person 'x' to person 'y'
-create_plot_adversarial_images(image_norm, label_adv, lr=0.02, n_steps=5)
+i=0
+while True:
+    print i
+    image_norm = np.reshape(readPGM(fperturb), (1, 32256))/255.0
+    flag = create_plot_adversarial_images(image_norm, label_adv, lr=0.1+i, n_steps=30)
+    if flag:
+        break
+    i+=1
 
  
 sess.close()
