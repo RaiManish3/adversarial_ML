@@ -7,8 +7,6 @@ from PIL import Image
 from resizeimage import resizeimage
 
 file_no = 22
-# x_train = tf.placeholder(float32, [None, 32256])
-# y_train = tf.palceholder(float32, [None, file_no1-1])
 labels= []
 images= []
 for i in xrange(18,file_no+1):
@@ -18,7 +16,6 @@ for i in xrange(18,file_no+1):
 	for j in xrange(0,9):
 		nmbr2='0'+str(j)
 		file_info = open(dirc+'/'+dirc+'_P'+nmbr2+'.info','r')
-		#label = np.zeros(2)
 
 		for line in file_info.readlines():
 			line = dirc+'/'+line.strip()

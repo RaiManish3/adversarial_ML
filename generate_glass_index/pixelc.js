@@ -1,11 +1,14 @@
+// this function writes the coordinates of the cursor when it hovers over the canvas
 $(function(){
     $(canvas).mousemove(function(e){
         $('#coordinates').html('x: ' + e.pageX + ' y : ' + e.pageY);
     });
 })
 
+// enter the path of the image you want to change
 var img = new Image();
-img.src = 'sample_images/ml.png';
+img.src = '../sample_images/ml.png';
+
 var canvas = document.getElementById('frame1');
 canvas.height = parseInt(img.height);
 canvas.width = parseInt(img.width);
@@ -16,12 +19,12 @@ img.onload = function() {
 };
 
 var cod = []
-//var id = ctx.createImageData(1,1); // only do this once per page
-//var d  = id.data;                        // only do this once per page
 
 var flag = 0;
 var startdrag = false;
 var element = document.getElementById('frame1');
+
+//------------------------------------------------------ the drag movement
 element.addEventListener("mousedown", function(){
         flag = 0;
         startdrag = true;
@@ -44,14 +47,12 @@ element.addEventListener("mousemove", function(e){
         flag = 1;
 }, false);
 element.addEventListener("mouseup", function(){
-    if(flag === 1 && startdrag){
-       //console.log(cod);
-    }
         startdrag = false;
 }, false);
+//------------------------------------------------------ the drag movement
 
+//one you draw the required shape, download the coordinates of all the points you traversed
 var create = document.getElementById('downld');
-
 var textFile = null,
   makeTextFile = function (text) {
           var data = new Blob([text], {type: 'text/plain'});
@@ -69,10 +70,9 @@ var textFile = null,
 
 create.addEventListener('click', function () {
         var link = document.createElement('a');
-        link.setAttribute('download', 'info.txt');
+        link.setAttribute('download', '../index/indices.txt');
         var alltext = "";
         for(var item of cod)
-            //console.log(item);
             alltext+=item['x']+","+item['y']+"\n";
         link.href = makeTextFile(alltext);
         document.body.appendChild(link);

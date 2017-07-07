@@ -6,7 +6,6 @@ import re
 
 #---------------------------------------------------------------------------------------
 ## reading the pgm file
-## reading the pgm file
 def readPGM(fname):
     with open(fname, 'rb') as f:
         buffer = f.read()
@@ -24,6 +23,8 @@ def readPGM(fname):
             offset=len(header)
             ).reshape((int(height)*int(width)))
 
+## The project used yale database B. The model was trained on 10 subjects
+## Their folder was stored in the same one as this.
 file_no = 21
 
 labels= []
@@ -49,7 +50,7 @@ for i in xrange(11,file_no+1):
 				labels.append(label)
 				images.append(xh)
 			#print i, xh.shape
-		
+
 
 y_labels = np.asarray(labels)
 x_images = np.asarray(images)/255.0
@@ -64,7 +65,7 @@ x_images = x_images[s]
 y_labels = y_labels[s]
 
 n_test = int(np.floor(0.1*tt))
-print n_test
+#print n_test
 x_train = x_images[:tt-n_test]
 y_train = y_labels[:tt-n_test]
 
@@ -74,6 +75,7 @@ y_test = y_labels[-n_test:]
 file_info.close()
 
 #--------------------------------------------------------------------------------------------------------
+# Enter path to indices.txt ( one where the glass frame coordinates are stored)
 pertb_lst_file = 'index/info9_uniq.txt'
 ptb_list=[]
 with open(pertb_lst_file,'r') as fpt:
@@ -82,7 +84,7 @@ with open(pertb_lst_file,'r') as fpt:
         ptb_list.append((col,row))
 
 
-#---------------------------------------------------------------------------------------------------------- 
+#----------------------------------------------------------------------------------------------------------
 
 sess = tf.InteractiveSession()
 
@@ -102,7 +104,7 @@ def conv2d(x, W):
 def max_pooling_2x2(x):
     return tf.nn.max_pool(x, ksize=[1,2,2,1], strides=[1,2,2,1], padding='SAME')
 
-   
+
 # Create placeholders nodes for images and label inputs
 x = tf.placeholder(tf.float32, shape=[None, 168*192])
 y_ = tf.placeholder(tf.float32, shape=[None, 10])
@@ -111,7 +113,7 @@ y_ = tf.placeholder(tf.float32, shape=[None, 10])
 # y = (Wx +b)
 
 # Input layer
-x_image = tf.reshape(x, [-1,192,168,1]) 
+x_image = tf.reshape(x, [-1,192,168,1])
 
 # Conv layer 1 - 32x5x5
 W_conv1 = weight_variable([5, 5, 1, 32])
@@ -170,7 +172,7 @@ for i in range((tt-n_test)/200+1):
     train_accuracy = accuracy.eval(feed_dict={x:batch_x, y_: batch_y, keep_prob: 1.0})
     print("step %d, training accuracy %g"%(i, train_accuracy))
 
-print("test accuracy %g"%accuracy.eval(feed_dict={x: x_test[:200], 
+print("test accuracy %g"%accuracy.eval(feed_dict={x: x_test[:200],
                                                   y_: y_test[:200], keep_prob: 1.0}))
 
 
@@ -182,11 +184,11 @@ def plot_predictions(image_list, output_probs=False, adversarial=False):
     Return probability list if output_probs == True
     '''
     prob = y.eval(feed_dict={x: image_list, keep_prob: 1.0})
-    
+
 
     pred_list = np.zeros(len(image_list)).astype(int)
     pct_list = np.zeros(len(image_list)).astype(int)
-    
+
     #Setup image grid
     import math
     cols = 3
@@ -196,7 +198,7 @@ def plot_predictions(image_list, output_probs=False, adversarial=False):
                      nrows_ncols=(rows, cols),  # creates grid of axes
                      axes_pad=0.5,  # pad between axes in inch.
                      )
-    
+
     # Get probs, images and populate grid
     for i in range(len(prob)):
         pred_list[i] = np.argmax(prob[i]) # here index == classification
@@ -204,17 +206,17 @@ def plot_predictions(image_list, output_probs=False, adversarial=False):
 
         image = image_list[i].reshape(192,168)
         grid[i].imshow(image, cmap='gray')
-        
+
         grid[i].set_title('Label: {0} \nCertainty: {1}%' \
-                          .format(pred_list[i], 
+                          .format(pred_list[i],
                                   pct_list[i]))
-        
+
         # Only use when plotting original, partial deriv and adversarial images
-        if (adversarial) & (i % 3 == 1): 
+        if (adversarial) & (i % 3 == 1):
             grid[i].set_title("Adversarial \nPartial Derivatives")
-        
+
     plt.show()
-    
+
     return prob if output_probs else None
 #----------------------------------------
 
@@ -222,16 +224,16 @@ def plot_predictions(image_list, output_probs=False, adversarial=False):
 derivx = tf.placeholder(tf.float32, shape=[None, 32256])
 
 def create_plot_adversarial_images(x_image, y_label, lr=0.1, n_steps=1, output_probs=True):
-    
+
     original_image = x_image
     probs_per_step = []
-    
+
     # Calculate loss, derivative and create adversarial image
     loss =  tf.nn.softmax_cross_entropy_with_logits(labels=y_label, logits=y_conv)
     deriv = tf.gradients(loss, x)
     image_adv = tf.stop_gradient(x - tf.sign(derivx)*lr/n_steps)
     image_adv = tf.clip_by_value(image_adv, 0, 1) # prevents -ve values creating 'real' image
-    
+
     i=0
     for _ in range(n_steps):
         # Calculate derivative and adversarial image
@@ -240,7 +242,7 @@ def create_plot_adversarial_images(x_image, y_label, lr=0.1, n_steps=1, output_p
         for c,r in ptb_list:
             deriv2[0][168*r+c] = dydx[0][0][168*r+c]
         x_adv = sess.run(image_adv, {x: x_image, derivx: np.array(deriv2), keep_prob: 1.0})
-        
+
         # Create darray of 3 images - orig, noise/delta, adversarial
         x_image = np.reshape(x_adv, (1, 32256))
         img_adv_list = original_image
@@ -253,17 +255,17 @@ def create_plot_adversarial_images(x_image, y_label, lr=0.1, n_steps=1, output_p
         print "probability: ",probs
         print "iteration: ",i
         i+=1
-    
+
     #return probs_per_step
     return False
-   
+
 #-----------------------------------------------------------------------------------
 #filename to bemisclassified => yaleB11_P00A+000E+00.pgm
 fperturb ='yaleB11/yaleB11_P00A+000E+00.pgm'
 #image_norm = np.reshape(readPGM(fperturb), (1, 32256))/255.0
 
 """
-# Pick a random second person's image from first 1000 images 
+# Pick a random second person's image from first 1000 images
 # Create adversarial image and with target label 0
 index_adv = np.nonzero(y_labels[0:1000][:,0])[0]
 rand_index = np.random.randint(0, len(index_adv))
@@ -285,6 +287,6 @@ while True:
         break
     i+=1
 
- 
+
 sess.close()
 
